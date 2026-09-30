@@ -1,0 +1,28 @@
+[package]
+name = "infrastructure"
+version.workspace = true
+edition.workspace = true
+
+# Implements the ports declared in `domain`. Nothing depends on this crate
+# except the composition root in `api` — swapping Postgres out touches only here.
+[dependencies]
+anyhow.workspace = true
+argon2 = "0.6.0"
+async-trait = "0.1"
+chacha20poly1305 = "0.11.0"
+chrono.workspace = true
+domain = { path = "../domain" }
+dotenvy = "0.15.7"
+getrandom = "0.4.3"
+hex = "0.4.3"
+# `rust_crypto`, never `aws_lc_rs`: the latter needs cmake and a C toolchain,
+# which breaks the static musl build. See the standing constraints in SETUP.md.
+jsonwebtoken = { version = "11.1.0", default-features = false, features = ["rust_crypto"] }
+rust_decimal.workspace = true
+serde = { workspace = true, features = ["derive"] }
+sha2 = "0.11.0"
+sqlx = { version = "0.9.0", default-features = false, features = ["postgres", "runtime-tokio", "tls-rustls-ring", "macros", "chrono", "rust_decimal", "json", "migrate", "ipnetwork"] }
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "rt"] }
+
+[lints]
+workspace = true

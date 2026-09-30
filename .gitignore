@@ -1,0 +1,49 @@
+# Build output for the whole workspace — every crate builds into this one.
+/target/
+
+# Real credentials: DATABASE_URL password, JWT_SECRET.
+.env
+
+# Runtime output: mail log (MAIL_LOG_PATH), encrypted feature state
+# (FEATURE_STATE_PATH).
+logs/
+var/
+
+# Per-developer Claude Code overrides; .claude/settings.json is shared.
+.claude/settings.local.json
+
+# --- Editors and IDEs --------------------------------------------------------
+# Shared project settings stay committed; per-machine state does not.
+
+# VS Code: settings.json and extensions.json are project config, the rest is
+# local (launch configs with personal paths, the Local History extension).
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.history/
+
+# JetBrains (RustRover, IntelliJ, CLion) and Fleet: almost entirely workspace
+# state and machine-specific paths.
+.idea/
+*.iml
+.fleet/
+
+# Zed keeps its per-machine state outside the project, so there is nothing to
+# ignore: .zed/settings.json and .zed/tasks.json are project config, as in
+# .vscode/.
+
+# Vim, Emacs: swap, backup and lock files.
+*.swp
+*.swo
+*~
+\#*\#
+.#*
+
+# rustfmt backups (only written when run with --backup).
+**/*.rs.bk
+
+# OS metadata — Windows Explorer can write these into WSL folders.
+.DS_Store
+Thumbs.db
+desktop.ini
+*:Zone.Identifier

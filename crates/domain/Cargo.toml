@@ -1,0 +1,15 @@
+[package]
+name = "domain"
+version.workspace = true
+edition.workspace = true
+
+# The dependency rule: this crate may not depend on any other workspace crate,
+# nor on sqlx, axum, or tokio. `async-trait` is a proc-macro only — it adds no
+# runtime, it just lets repository ports be used behind `dyn`.
+[dependencies]
+async-trait = "0.1"
+chrono.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

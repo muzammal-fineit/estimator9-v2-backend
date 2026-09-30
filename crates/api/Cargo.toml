@@ -1,0 +1,32 @@
+[package]
+name = "api"
+version.workspace = true
+edition.workspace = true
+# Two binaries live here (`api`, `openapi`), so plain `cargo run -p api` and
+# `cargo build --release` would otherwise be ambiguous.
+default-run = "api"
+
+# The composition root: the only crate allowed to depend on every layer.
+[dependencies]
+anyhow.workspace = true
+application = { path = "../application" }
+axum = "0.8.9"
+chrono.workspace = true
+domain = { path = "../domain" }
+dotenvy = "0.15.7"
+infrastructure = { path = "../infrastructure" }
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "signal", "net"] }
+tower-http = { version = "0.7.1", features = ["trace", "cors"] }
+tower_governor = "0.8.0"
+tracing.workspace = true
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+utoipa = { version = "5.5.0", features = ["axum_extras", "chrono"] }
+utoipa-axum = "0.2.0"
+utoipa-swagger-ui = { version = "9.0.2", features = ["axum", "vendored"] }
+uuid = { version = "1.26.1", features = ["v4"] }
+
+[lints]
+workspace = true

@@ -1,0 +1,3 @@
+# Assertions in tests are supposed to panic; that is how a test fails.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true

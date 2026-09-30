@@ -1,0 +1,17 @@
+# Link with mold instead of GNU ld. Linking dominates an incremental rebuild —
+# the compile is cached, the link is not — and this workspace now produces four
+# binaries plus a test harness per crate.
+#
+# `-B` rather than `-fuse-ld=mold`: the flag form needs GCC 12.1+, and Ubuntu
+# 22.04 ships GCC 11. `-B` points the driver at a directory containing mold's
+# `ld`, which works on any GCC. Both were verified to produce mold-linked
+# binaries here; this one keeps working if the toolchain moves.
+#
+# Requires `sudo apt install -y mold`. Without it, every build fails at link
+# time — see docs/SETUP.md.
+[target.x86_64-unknown-linux-gnu]
+rustflags = ["-C", "link-arg=-B/usr/libexec/mold"]
+
+# Deliberately not applied to x86_64-unknown-linux-musl: the static release
+# build uses musl-gcc, and that path is the one that ships. Leave it on the
+# stock linker rather than introduce a variable into the artifact you deploy.

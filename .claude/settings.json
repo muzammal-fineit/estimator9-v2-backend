@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cargo tree *)",
+      "Bash(cargo search *)",
+      "Bash(cargo info *)",
+      "Bash(python3 -)",
+      "Bash(cargo add *)",
+      "Bash(bash -c 'grep -n \"login_routes\\\\|password_reset_routes\\\\|session_routes\\\\|cors::layer\\\\|throttled\" crates/api/src/http/routes.rs')",
+      "Bash(cargo clean *)",
+      "Bash(cargo build *)",
+      "Bash(grep -E '^\\(error|warning: `\\)')",
+      "Bash(awk '{print \"api binary:\", $5}')",
+      "Bash(git init *)",
+      "Bash(export GIT_DIR=$G GIT_WORK_TREE=.)",
+      "Bash(git config *)",
+      "Bash(git status *)",
+      "Bash(awk '{print $2}')",
+      "Bash(awk -F/ '{print \\($1==\"crates\"?$1\"/\"$2:$1\\)}')"
+    ]
+  }
+}

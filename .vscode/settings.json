@@ -1,0 +1,13 @@
+{
+  "rust-analyzer.check.command": "clippy",
+  "rust-analyzer.cargo.targetDir": true,
+  "rust-analyzer.check.workspace": false,
+  "editor.formatOnSave": true,
+  "[rust]": {
+    "editor.defaultFormatter": "rust-lang.rust-analyzer",
+    "editor.formatOnSave": false
+  },
+  "files.watcherExclude": {
+    "**/target/**": true
+  }
+}

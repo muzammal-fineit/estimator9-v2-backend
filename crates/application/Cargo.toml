@@ -1,0 +1,15 @@
+[package]
+name = "application"
+version.workspace = true
+edition.workspace = true
+
+# Depends on `domain` and nothing else from the workspace. If a use case ever
+# seems to need sqlx or axum here, the missing piece is a port in `domain`.
+[dependencies]
+chrono.workspace = true
+domain = { path = "../domain" }
+tracing.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,1746 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Estimator9 API",
+    "description": "IFRS 9 provisioning engine — MEV series, model fitting, and the accounts that drive them.\n\nObtain a token from `POST /auth/login` and send it as `Authorization: Bearer <token>`. Endpoints marked with a padlock require one; those that also need a permission list it under their 403 response.\n\nTokens are short-lived and carry the caller's permissions, so a role changed after sign-in takes effect on the next token rather than the next request.",
+    "contact": {
+      "name": "FineIT",
+      "email": "akmal@tech.fineit.io"
+    },
+    "license": {
+      "name": ""
+    },
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/auth/login": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Exchange an email and password for an access token.",
+        "description": "Rejections are deliberately indistinguishable: an unknown address, a wrong\npassword and a disabled account all return the same 401. Anything else\nwould let a caller enumerate accounts.\n\nThe single exception is a locked account, which returns 423 — but only to a\ncaller who supplied the *correct* password, and so has already confirmed\nthe account exists. Someone guessing still sees 401.",
+        "operationId": "login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body is not valid JSON",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid credentials — indistinguishable from an unknown, locked or disabled account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type is not application/json",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Email or password rejected by policy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "423": {
+            "description": "The password was correct but the account is temporarily locked after repeated failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many attempts; see Retry-After",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The data store is unavailable; retry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "End the session and clear the refresh cookie.",
+        "description": "Needs no access token: a caller whose access token has already expired must\nstill be able to log out. Always succeeds — an unknown token still means\n\"log me out\", and saying otherwise would reveal whether it was real.",
+        "operationId": "logout",
+        "responses": {
+          "204": {
+            "description": "Session ended and cookie cleared"
+          }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "The signed-in user.",
+        "description": "Needs no permission — every authenticated caller may read their own\naccount, and Angular calls this on boot to render a header and decide which\nnavigation to show. It re-reads from the database rather than echoing the\ntoken, so a name changed since login is current.",
+        "operationId": "me",
+        "responses": {
+          "200": {
+            "description": "The signed-in user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, malformed or expired access token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The account no longer exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The data store is unavailable; retry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Change your own display name.",
+        "description": "Name only: the email address is the login identifier, and changing it\nunverified turns one typo into a locked-out account. That goes through an\nadministrator.",
+        "operationId": "update_profile",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProfileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Updated"
+          },
+          "400": {
+            "description": "The body is not valid JSON",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, malformed or expired access token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The name is blank",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The data store is unavailable; retry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/auth/password/change": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Change your own password.",
+        "description": "Requires the current password even though the caller already holds a valid\ntoken — a token is something a borrowed laptop already has, and this is the\noperation that would lock its owner out.\n\nEvery session ends, including this one, and a fresh session is returned. So\nthe caller stays signed in and every other device is signed out, which is\nthe point of changing a password you think someone else may know.",
+        "operationId": "change_password",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Changed; a replacement session is returned and all others are ended",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body is not valid JSON",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing token, or the current password is wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The new password does not meet policy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many attempts; see Retry-After",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The data store is unavailable; retry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/auth/password/forgot": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Ask for a password reset link.",
+        "description": "**Always returns 204**, whether or not the address belongs to an account.\nReporting \"no such user\" would turn this into a way to ask whether someone\nholds an account here — a leak that needs no credentials at all.\n\nRate limited: without it, this endpoint sends mail to any address a caller\nnames, as often as they like.",
+        "operationId": "forgot_password",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForgotPasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Accepted. A link is sent only if the address has an active account, and the response is identical either way"
+          },
+          "400": {
+            "description": "The body is not valid JSON",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "That is not a valid email address",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests; see Retry-After",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The data store is unavailable; retry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/password/reset": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Redeem a reset link and set a new password.",
+        "description": "Unknown, expired and already-used tokens all answer 401 alike — telling\nthem apart would say whether a link was ever real.\n\nNo session is returned: the user logs in afterwards. Signing them in here\nwould mean a link forwarded to the wrong inbox grants a live session rather\nthan only the chance to set a password.",
+        "operationId": "reset_password",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetPasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Password set and every session ended; sign in again"
+          },
+          "400": {
+            "description": "The body is not valid JSON",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The token is unknown, expired, or already used",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The new password does not meet policy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests; see Retry-After",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The data store is unavailable; retry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Exchange the refresh cookie for a new access token.",
+        "description": "The old refresh token is revoked and replaced, so each one is usable\nexactly once. Presenting an already-used token ends the whole session — see\n[`application::identity::RefreshSession`].\n\nTakes no request body: the credential is the httpOnly cookie, which script\ncannot read and the browser attaches automatically.",
+        "operationId": "refresh",
+        "responses": {
+          "200": {
+            "description": "A new session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired, or already-used refresh token. Reuse ends the whole session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The data store is unavailable; retry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "meta"
+        ],
+        "summary": "Liveness probe.",
+        "description": "Reports the running binary's version. Does not touch the database — a 200\nhere means the process is up, not that it can serve data.",
+        "operationId": "health",
+        "responses": {
+          "200": {
+            "description": "The process is running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/permissions": {
+      "get": {
+        "tags": [
+          "roles"
+        ],
+        "summary": "List every permission the system checks for.",
+        "description": "Reference data: it changes with a release, not through the API, because a\npermission nothing in the code checks would be a label that grants nothing.",
+        "operationId": "list_permissions",
+        "responses": {
+          "200": {
+            "description": "Every permission, alphabetically",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PermissionResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, malformed or expired access token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Lacks roles.read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The data store is unavailable; retry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/roles": {
+      "get": {
+        "tags": [
+          "roles"
+        ],
+        "summary": "List the roles that can be assigned.",
+        "description": "Includes `superadmin`, flagged, so a UI can show it as unassignable rather\nthan offering it and taking a 403.",
+        "operationId": "list_roles",
+        "responses": {
+          "200": {
+            "description": "Every role, alphabetically",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RoleResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, malformed or expired access token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Lacks roles.read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The data store is unavailable; retry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/users": {
+      "get": {
+        "tags": [
+          "identity"
+        ],
+        "summary": "List all users.",
+        "description": "Ordered by id ascending. Not paginated — the user table is small by design;\npagination arrives if and when it stops being.",
+        "operationId": "list_users",
+        "responses": {
+          "200": {
+            "description": "Every user, oldest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/UserResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, malformed or expired access token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated but lacks users.read — retrying will not help",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests; see Retry-After",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The data store is unavailable; retry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "identity"
+        ],
+        "summary": "Create a user account.",
+        "description": "The password is supplied by the administrator and must meet the same policy\nas any other — length only, no composition rules. `superadmin` cannot be\ngranted here; that is the vendor's account, not one a client administrator\nmints.",
+        "operationId": "create_user",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUserRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created; the Location header names the new account"
+          },
+          "400": {
+            "description": "The body is not valid JSON",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, malformed or expired access token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Lacks users.manage, or attempted to grant superadmin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "A named role does not exist",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "That email address is already in use",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Email, name, password or role name rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The data store is unavailable; retry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/users/{id}": {
+      "get": {
+        "tags": [
+          "identity"
+        ],
+        "summary": "Fetch one user by id.",
+        "operationId": "get_user",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The user's database id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, malformed or expired access token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated but lacks users.read — retrying will not help",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No user has that id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests; see Retry-After",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The data store is unavailable; retry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "identity"
+        ],
+        "summary": "Deactivate a user account.",
+        "description": "Not a delete: the row is retained so the audit trail keeps pointing at a\nreal account. Live sessions are closed and refresh tokens revoked in the\nsame transaction, so the account cannot obtain a new access token. One\nalready issued stays valid until it expires — at most the access-token\nlifetime.",
+        "operationId": "deactivate_user",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The account to deactivate",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "example": 2
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deactivated and its sessions ended"
+          },
+          "401": {
+            "description": "Missing, malformed or expired access token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Lacks users.manage, or targeted yourself or a superadmin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such user, or it is already inactive",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The data store is unavailable; retry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "identity"
+        ],
+        "summary": "Change a user's name or address.",
+        "description": "Partial: omit a field to leave it alone. An empty body is a 422 rather than\na silent success, since it is almost always a client bug.\n\nRoles are not editable here — they have their own endpoint, with their own\nescalation rails.",
+        "operationId": "update_user",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The account to change",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "example": 2
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateUserRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Updated"
+          },
+          "400": {
+            "description": "The body is not valid JSON",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, malformed or expired access token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Lacks users.manage, or targeted a superadmin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "That email address is already in use",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Nothing to change, or the address is malformed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The data store is unavailable; retry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/users/{id}/roles": {
+      "put": {
+        "tags": [
+          "identity"
+        ],
+        "summary": "Replace a user's roles.",
+        "description": "The list is exhaustive: whatever is sent becomes the user's complete set,\nand an empty list removes every role. A PATCH-style add/remove would make\nconcurrent edits silently lose one another.\n\n`superadmin` cannot be granted or removed here, and nobody may change their\nown roles — both would let a holder of `users.manage` escalate past every\nother boundary.",
+        "operationId": "assign_roles",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The user whose roles are being replaced",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "example": 2
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignRolesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Roles replaced"
+          },
+          "400": {
+            "description": "The body is not valid JSON",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, malformed or expired access token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Lacks users.manage, or attempted to change own roles or a superadmin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such user, or a named role does not exist",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A role name is malformed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The data store is unavailable; retry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/vendor/features": {
+      "get": {
+        "tags": [
+          "vendor"
+        ],
+        "summary": "List the software features and whether they are enabled.",
+        "description": "Vendor only. A client administrator gets 403 however privileged they are —\nthere is no permission that grants this, deliberately.",
+        "operationId": "list_features",
+        "responses": {
+          "200": {
+            "description": "The catalogue with current state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FeatureResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, malformed or expired access token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not the vendor account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The stored feature state is unreadable or has been tampered with",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/vendor/features/{name}": {
+      "put": {
+        "tags": [
+          "vendor"
+        ],
+        "summary": "Enable or disable a feature for this installation.",
+        "description": "Vendor only, and audited with `via_superadmin` so the change is visible to\nthe client's auditor even though it never touches their database.\n\nSetting a feature to the state it already has does nothing and records\nnothing.",
+        "operationId": "set_feature",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Feature name from the catalogue",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "mev.fitting"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetFeatureRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Applied"
+          },
+          "400": {
+            "description": "The body is not valid JSON",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, malformed or expired access token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not the vendor account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "This release has no such feature",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The stored feature state is unreadable or has been tampered with",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AssignRolesRequest": {
+        "type": "object",
+        "description": "The complete set of roles the user should end up with.",
+        "required": [
+          "roles"
+        ],
+        "properties": {
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Exhaustive, not additive — an empty list removes every role.",
+            "example": [
+              "analyst",
+              "viewer"
+            ]
+          }
+        }
+      },
+      "ChangePasswordRequest": {
+        "type": "object",
+        "description": "A password change. Both values go through the same policy check.",
+        "required": [
+          "current_password",
+          "new_password"
+        ],
+        "properties": {
+          "current_password": {
+            "type": "string"
+          },
+          "new_password": {
+            "type": "string",
+            "description": "At least 12 characters."
+          }
+        }
+      },
+      "CreateUserRequest": {
+        "type": "object",
+        "description": "A new account.",
+        "required": [
+          "email",
+          "name",
+          "password",
+          "roles"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "analyst@fineit.io"
+          },
+          "name": {
+            "type": "string",
+            "example": "Test Analyst"
+          },
+          "password": {
+            "type": "string",
+            "description": "At least 12 characters. Never echoed back and never audited.",
+            "example": "correct horse battery staple"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "May be empty; the account then has no permissions until roles are\nassigned.",
+            "example": [
+              "analyst"
+            ]
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "description": "The body every failing request returns. One shape for all errors, so a\nclient can parse failures without branching on the status code.",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "Human-readable description of what went wrong.",
+            "example": "user 999999 not found"
+          }
+        }
+      },
+      "FeatureResponse": {
+        "type": "object",
+        "required": [
+          "name",
+          "description",
+          "enabled",
+          "enabled_by_default"
+        ],
+        "properties": {
+          "description": {
+            "type": "string",
+            "example": "Fit MEV regression models from macroeconomic series."
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "enabled_by_default": {
+            "type": "boolean",
+            "description": "What a fresh installation would have. Useful when deciding whether a\nstate was set deliberately or has simply never been touched."
+          },
+          "name": {
+            "type": "string",
+            "example": "mev.fitting"
+          }
+        }
+      },
+      "ForgotPasswordRequest": {
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "akmal@tech.fineit.io"
+          }
+        }
+      },
+      "HealthResponse": {
+        "type": "object",
+        "required": [
+          "status",
+          "version"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "ok"
+          },
+          "version": {
+            "type": "string",
+            "description": "The running binary's `CARGO_PKG_VERSION`.",
+            "example": "0.1.0"
+          }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "akmal@tech.fineit.io"
+          },
+          "password": {
+            "type": "string",
+            "example": "correct horse battery staple"
+          }
+        }
+      },
+      "PermissionResponse": {
+        "type": "object",
+        "required": [
+          "name",
+          "description"
+        ],
+        "properties": {
+          "description": {
+            "type": "string",
+            "example": "Run MEV regression fits"
+          },
+          "name": {
+            "type": "string",
+            "example": "mev.fit"
+          }
+        }
+      },
+      "ResetPasswordRequest": {
+        "type": "object",
+        "description": "The token from the emailed link, plus the password to set.",
+        "required": [
+          "token",
+          "new_password"
+        ],
+        "properties": {
+          "new_password": {
+            "type": "string",
+            "description": "At least 12 characters."
+          },
+          "token": {
+            "type": "string"
+          }
+        }
+      },
+      "RoleResponse": {
+        "type": "object",
+        "description": "A role the administrator can assign.",
+        "required": [
+          "name",
+          "description",
+          "is_superadmin"
+        ],
+        "properties": {
+          "description": {
+            "type": "string",
+            "description": "What holding it means. The only place that explains a role to someone\nwho did not define it, so it is published rather than kept internal.",
+            "example": "Fits MEV models and reviews results."
+          },
+          "is_superadmin": {
+            "type": "boolean",
+            "description": "True for the vendor account, which sits outside the permission model.\nPublished so a UI can show it as unassignable rather than offering it\nand taking a 403."
+          },
+          "name": {
+            "type": "string",
+            "example": "analyst"
+          }
+        }
+      },
+      "SessionResponse": {
+        "type": "object",
+        "description": "Returned by both `/auth/login` and `/auth/refresh` — the same thing is\nbeing handed over in each case.",
+        "required": [
+          "access_token",
+          "token_type",
+          "expires_at",
+          "user"
+        ],
+        "properties": {
+          "access_token": {
+            "type": "string",
+            "description": "Send as `Authorization: Bearer <access_token>`."
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the token stops being accepted. Short by design — permissions are\ncarried inside it, so this bounds how long a revoked role keeps working."
+          },
+          "token_type": {
+            "type": "string",
+            "example": "Bearer"
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserResponse",
+            "description": "Saves the client an immediate follow-up call to render a header."
+          }
+        }
+      },
+      "SetFeatureRequest": {
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        }
+      },
+      "UpdateProfileRequest": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Test Analyst"
+          }
+        }
+      },
+      "UpdateUserRequest": {
+        "type": "object",
+        "description": "Fields to change. Omit one to leave it alone.",
+        "properties": {
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "analyst@fineit.io"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "Test Analyst"
+          }
+        }
+      },
+      "UserResponse": {
+        "type": "object",
+        "description": "A user as the API publishes them.\n\nThere is deliberately no password field of any kind. Because `User` keeps\nits hash private and this struct is written by hand, adding one would have\nto be a conscious act rather than a `#[derive(Serialize)]` accident.",
+        "required": [
+          "id",
+          "email",
+          "name",
+          "is_active",
+          "roles",
+          "is_superadmin",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-09-18T12:41:29.785Z"
+          },
+          "email": {
+            "type": "string",
+            "example": "analyst@fineit.io"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1
+          },
+          "is_active": {
+            "type": "boolean",
+            "description": "Deactivated accounts are retained, not deleted.",
+            "example": true
+          },
+          "is_superadmin": {
+            "type": "boolean",
+            "description": "True when the account holds `superadmin` and therefore bypasses every\npermission check.",
+            "example": false
+          },
+          "name": {
+            "type": "string",
+            "example": "Test Analyst"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Role names, alphabetically. Permissions are not expanded here — they are\nissued in the access token at login.",
+            "example": [
+              "analyst"
+            ]
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-09-18T12:41:29.785Z"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Issued by POST /auth/login. Expires; refresh by logging in again."
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "auth",
+      "description": "Obtaining and using access tokens."
+    },
+    {
+      "name": "roles",
+      "description": "The authorization vocabulary: roles and the permissions they carry. Read-only — reference data changes with a release, not through the API."
+    },
+    {
+      "name": "identity",
+      "description": "User accounts. Roles and permissions arrive with the RBAC slice."
+    },
+    {
+      "name": "vendor",
+      "description": "Vendor-only. Controls which software features this installation may use. Unreachable by any client role, however privileged — these are not the client's decisions to make."
+    },
+    {
+      "name": "meta",
+      "description": "Liveness and build information."
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+[workspace]
+resolver = "2"
+# Listed outermost-first: each crate may only depend on the ones below it.
+#   api            -> application, domain, infrastructure   (composition root)
+#   infrastructure -> domain
+#   application    -> domain
+#   domain         -> nothing
+#   stats          -> nothing (supporting subdomain, pure numerics)
+members = ["crates/api", "crates/application", "crates/infrastructure", "crates/domain", "crates/stats"]
+
+[workspace.package]
+edition = "2024"
+version = "0.1.0"
+
+# Full debug info for ~370 dependencies is most of target/'s size. Line tables
+# keep file:line in panics and backtraces for our own code; deps get none.
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
+
+[profile.release]
+strip = true
+
+[workspace.dependencies]
+serde        = { version = "1", features = ["derive"] }
+serde_json   = "1"
+thiserror    = "2"
+anyhow       = "1"
+chrono       = { version = "0.4", features = ["serde"] }
+rust_decimal = { version = "1", features = ["serde"] }
+tracing      = "0.1"
+
+# Enforced, not remembered: a panic in a request handler takes down the task and
+# returns a bare 500 with no error body and no audit trail. Every failure must be
+# a Result that some layer translates. Tests may still unwrap — see clippy.toml.
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
