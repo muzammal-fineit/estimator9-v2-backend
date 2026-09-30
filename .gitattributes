@@ -1,0 +1,5 @@
+# Keep LF on checkout even under Git for Windows' default core.autocrlf=true.
+# A CRLF shebang fails with "/usr/bin/env: 'bash\r'", and psql can choke on
+# CRLF in migrations and seeds.
+*.sh  text eol=lf
+*.sql text eol=lf
